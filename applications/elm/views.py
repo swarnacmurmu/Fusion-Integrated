@@ -44,3 +44,40 @@ class ReviewLeaveView(APIView):
             return Response({"message": f"Leave review updated to {leave.status}"})
         except LeaveApplication.DoesNotExist:
             return Response({"error": "Leave application not found"}, status=status.HTTP_404_NOT_FOUND)
+
+
+class RequestExtensionView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            parent_leave = LeaveApplication.objects.get(pk=pk, applicant=request.user, status='APPROVED')
+            if parent_leave.category not in ['EL', 'COL', 'VL']:
+                return Response({"error": "Extension allowed only for EL, COL, or VL"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # BR-EL-025: Create extension request (incremental period)
+            ext_leave = LeaveApplication.objects.create(
+                applicant=request.user,
+                category=parent_leave.category,
+                start_date=request.data.get('extension_start_date'),
+                end_date=request.data.get('extension_end_date'),
+                purpose=f"Extension for Leave #{parent_leave.id}: {request.data.get('reason')}",
+                status='AWAITING_UNIT_HEAD'
+            )
+            return Response({"message": "Extension request submitted", "extension_id": ext_leave.id}, status=status.HTTP_201_CREATED)
+        except LeaveApplication.DoesNotExist:
+            return Response({"error": "Active approved leave not found"}, status=status.HTTP_404_NOT_FOUND)
+
+class ResumptionDutyView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        actual_date = request.data.get('actual_resumption_date')
+        try:
+            leave = LeaveApplication.objects.get(pk=pk, applicant=request.user, status='APPROVED')
+            # BR-EL-028: Record actual return date for synchronization
+            leave.purpose += f" | Resumed Duty On: {actual_date}"
+            leave.save()
+            return Response({"message": "Resumption of duty recorded successfully"})
+        except LeaveApplication.DoesNotExist:
+            return Response({"error": "Approved leave record not found"}, status=status.HTTP_404_NOT_FOUND)
