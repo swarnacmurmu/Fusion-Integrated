@@ -37,7 +37,7 @@ const ApplyLeave: React.FC<ApplyLeaveProps> = () => {
         // Fix: Allow single-day leaves (start <= end)
         if (start <= end) {
             try {
-                const response = await axios.post('/api/elm/apply/', formData);
+                await axios.post('/api/elm/apply/', formData);
                 setSuccessMessage('Leave application submitted successfully!');
                 
                 // Reset form on success
